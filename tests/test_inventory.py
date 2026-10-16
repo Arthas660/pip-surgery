@@ -3,7 +3,9 @@ import unittest
 from contextlib import chdir
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from src.pip_surgery.inventory import get_packages, save_report
+from pip_surgery.inventory import get_packages, save_report
+from unittest.mock import Mock
+from pip_surgery.inventory import get_protection_reasons
 
 class InventoryTests(unittest.TestCase):
     def test_packages_are_sorted(self):
@@ -40,5 +42,23 @@ class InventoryTests(unittest.TestCase):
                 self.assertNotEqual(report_path, second_path)
                 self.assertTrue(Path(second_path).is_file())
 
+    def test_editable_package_is_protected(self):
+        package = Mock()
+        package.read_text.return_value = (
+            '{"dir_info": {"editable": true}}')
+        
+        reasons = get_protection_reasons(package, ["example.py"])
+        self.assertTrue(
+            any("Editable installation" in reason for reason in reasons)
+        )
+
+    def test_empty_file_list_is_protected(self):
+        package = Mock()
+        package.read_text.return_value = None
+        reasons = get_protection_reasons(package, [])
+        self.assertIn(
+            "Package file list is missing or empty.",
+            reasons,)
+        
 if __name__ == "__main__":
     unittest.main()
