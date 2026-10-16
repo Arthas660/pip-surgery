@@ -4,9 +4,33 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+def get_protection_reasons(package, file_records) -> list[str]:
+
+    reasons = []
+    if not file_records:
+        reasons.append("Package file list is missing or empty.")
+
+    try:
+        direct_url_text = package.read_text("direct_url.json")
+        if direct_url_text:
+            direct_url = json.loads(direct_url_text)
+
+            if not isinstance(direct_url, dict):
+                raise ValueError("Invalid installation metadata")
+
+            directory_info = direct_url.get("dir_info", {})
+            if not isinstance(directory_info, dict):
+                raise ValueError("Invalid directory metadata")
+
+            if directory_info.get("editable") is True:
+                reasons.append("Editable installation: source files must be preserved.")
+
+    except (OSError, UnicodeError, ValueError):
+        reasons.append("Installation metadata could not be read reliably.")
+    return reasons
+
 def get_packages() -> list[dict]:
     packages = []
-
     for package in distributions():
         name = package.metadata.get("Name")
         if not name:
@@ -14,6 +38,7 @@ def get_packages() -> list[dict]:
 
         files = []
         file_records = package.files
+        protection_reasons = get_protection_reasons(package, file_records)
 
         for record in file_records or []:
             path = package.locate_file(record)
@@ -29,16 +54,21 @@ def get_packages() -> list[dict]:
                 "size_bytes": size,
                 "error": error,})
 
+        if any(file["error"] is not None for file in files):
+            protection_reasons.append("Some recorded files could not be inspected.")
+
         packages.append({
             "name": name,
             "version": package.version,
             "files": files,
             "file_list_available": file_records is not None,
+            "protected": bool(protection_reasons),
+            "protection_reasons": protection_reasons,
             "size_bytes": sum(
                 file["size_bytes"]
                 for file in files
                 if file["size_bytes"] is not None),
-                })
+        })
 
     return sorted(packages, key=lambda item: item["name"].casefold())
 
@@ -71,6 +101,8 @@ def main() -> None:
         print(f"{package['name']}=={package['version']}")
         print(f"  Recorded files: {len(package['files'])}")
         print(f"  Readable file size: {size_mb:.2f} MiB")
+        for reason in package["protection_reasons"]:
+            print(f"  Protected: {reason}")
         print(f"  Unavailable files: {unreadable}")
 
         if not package["file_list_available"]:
