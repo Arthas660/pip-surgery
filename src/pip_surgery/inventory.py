@@ -3,15 +3,24 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+import sysconfig
 
 def get_protection_reasons(package, file_records) -> list[str]:
-
     reasons = []
+
     if not file_records:
         reasons.append("Package file list is missing or empty.")
+    native_extensions = (".dll", ".pyd", ".so", ".dylib", ".exe")
+
+    for record in file_records or []:
+        filename = str(record).casefold()
+        if filename.endswith(native_extensions) or ".so." in filename:
+            reasons.append("Native components detected: preserve the whole package.")
+            break
 
     try:
         direct_url_text = package.read_text("direct_url.json")
+
         if direct_url_text:
             direct_url = json.loads(direct_url_text)
 
@@ -19,6 +28,7 @@ def get_protection_reasons(package, file_records) -> list[str]:
                 raise ValueError("Invalid installation metadata")
 
             directory_info = direct_url.get("dir_info", {})
+
             if not isinstance(directory_info, dict):
                 raise ValueError("Invalid directory metadata")
 
@@ -31,7 +41,13 @@ def get_protection_reasons(package, file_records) -> list[str]:
 
 def get_packages() -> list[dict]:
     packages = []
-    for package in distributions():
+
+    package_paths = sorted({
+        sysconfig.get_path("purelib"),
+        sysconfig.get_path("platlib"),
+    })
+
+    for package in distributions(path=package_paths):
         name = package.metadata.get("Name")
         if not name:
             continue

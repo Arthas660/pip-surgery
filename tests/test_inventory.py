@@ -60,5 +60,21 @@ class InventoryTests(unittest.TestCase):
             "Package file list is missing or empty.",
             reasons,)
         
+    def test_native_package_is_protected(self):
+        package = Mock()
+        package.read_text.return_value = None
+
+        reasons = get_protection_reasons(
+            package,
+            ["example/__init__.py", "example/core.pyd"],)
+
+        self.assertIn("Native components detected: preserve the whole package.", reasons,)
+
+    def test_python_files_do_not_trigger_native_protection(self):
+        package = Mock()
+        package.read_text.return_value = None
+        reasons = get_protection_reasons(package,["example/__init__.py", "example/core.py"],)
+        self.assertEqual(reasons, [])
+        
 if __name__ == "__main__":
     unittest.main()
