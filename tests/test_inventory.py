@@ -7,6 +7,7 @@ from pip_surgery.inventory import get_packages, save_report
 from unittest.mock import Mock
 from pip_surgery.inventory import get_protection_reasons
 from pip_surgery.inventory import get_file_protection_reasons
+from pip_surgery.inventory import mark_shared_files
 
 class InventoryTests(unittest.TestCase):
     def test_packages_are_sorted(self):
@@ -124,6 +125,54 @@ class InventoryTests(unittest.TestCase):
                 outside_file,
                 environment,)
             self.assertIn("File is outside the Python environment.",reasons,)
+
+    def test_shared_file_is_protected(self):
+        with TemporaryDirectory() as directory:
+            shared_path = str(Path(directory) / "shared.py")
+
+            packages = [
+                {
+                    "name": name,
+                    "version": "1.0",
+                    "files": [{
+                        "path": shared_path,
+                        "protected": False,
+                        "protection_reasons": [],
+                    }],
+                }
+                for name in ("first", "second")]
+
+            mark_shared_files(packages)
+
+            for package in packages:
+                file = package["files"][0]
+
+                self.assertTrue(file["protected"])
+                self.assertEqual(
+                    file["owners"],
+                    ["first==1.0", "second==1.0"],)
+                
+                self.assertIn(
+                    "File is shared by multiple packages.",
+                    file["protection_reasons"],)
+
+    def test_single_owner_does_not_trigger_shared_protection(self):
+        with TemporaryDirectory() as directory:
+            packages = [{
+                "name": "example",
+                "version": "1.0",
+                "files": [{
+                    "path": str(Path(directory) / "example.py"),
+                    "protected": False,
+                    "protection_reasons": [],
+                }],
+            }]
+
+            mark_shared_files(packages)
+            file = packages[0]["files"][0]
+            self.assertEqual(file["owners"], ["example==1.0"])
+            self.assertFalse(file["protected"])
+            self.assertEqual(file["protection_reasons"], [])
             
 if __name__ == "__main__":
     unittest.main()

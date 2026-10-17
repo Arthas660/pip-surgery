@@ -4,6 +4,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 import sysconfig
+import os
 
 def get_protection_reasons(package, file_records) -> list[str]:
     reasons = []
@@ -61,6 +62,37 @@ def get_file_protection_reasons(path: Path, environment: Path,) -> list[str]:
         reasons.append("File location could not be resolved reliably.")
     return reasons
 
+def mark_shared_files(packages: list[dict]) -> None:
+    files_by_path = {}
+    for package in packages:
+        owner = f"{package['name']}=={package['version']}"
+
+        for file in package["files"]:
+            try:
+                normalized_path = os.path.normcase(str(Path(file["path"]).resolve()))
+            except (OSError, RuntimeError, ValueError):
+                file["protected"] = True
+                reason = "File ownership could not be checked reliably."
+
+                if reason not in file["protection_reasons"]:
+                    file["protection_reasons"].append(reason)
+                continue
+
+            files_by_path.setdefault(normalized_path, []).append((owner, file))
+
+    for records in files_by_path.values():
+        owners = sorted({owner for owner, _ in records})
+
+        for _, file in records:
+            file["owners"] = owners
+
+            if len(owners) > 1:
+                file["protected"] = True
+                reason = "File is shared by multiple packages."
+
+                if reason not in file["protection_reasons"]:
+                    file["protection_reasons"].append(reason)
+
 def get_packages() -> list[dict]:
     packages = []
 
@@ -113,6 +145,7 @@ def get_packages() -> list[dict]:
                 if file["size_bytes"] is not None),
         })
 
+    mark_shared_files(packages)
     return sorted(packages, key=lambda item: item["name"].casefold())
 
 def save_report(
