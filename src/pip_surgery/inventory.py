@@ -88,24 +88,29 @@ def get_packages() -> list[dict]:
 
     return sorted(packages, key=lambda item: item["name"].casefold())
 
-def save_report(packages: list[dict]) -> Path:
-    output_dir = Path(".surgery")
-    output_dir.mkdir(exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-    output_path = output_dir / f"inventory-{timestamp}.json"
+def save_report(
+    packages: list[dict],
+    output: Path | None = None,) -> Path:
+    if output is None:
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        output = Path(".surgery") / f"inventory-{timestamp}.json"
+
+    output.parent.mkdir(parents=True, exist_ok=True)
 
     report = {
         "schema_version": 1,
         "python_version": sys.version.split()[0],
         "python_executable": sys.executable,
         "environment": sys.prefix,
-        "packages": packages,}
+        "packages": packages,
+    }
 
-    with output_path.open("x", encoding="utf-8") as file:
+    with output.open("x", encoding="utf-8") as file:
         json.dump(report, file, ensure_ascii=False, indent=2)
-    return output_path
 
-def main() -> None:
+    return output
+
+def main(output: Path | None = None) -> None:
     packages = get_packages()
 
     for package in packages:
@@ -125,7 +130,7 @@ def main() -> None:
             print("  Warning: package file list is unavailable.")
 
     print(f"\nTotal packages: {len(packages)}")
-    report_path = save_report(packages)
+    report_path = save_report(packages, output)
     print(f"Report saved: {report_path}")
 
 if __name__ == "__main__":

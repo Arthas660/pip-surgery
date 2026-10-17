@@ -75,6 +75,29 @@ class InventoryTests(unittest.TestCase):
         package.read_text.return_value = None
         reasons = get_protection_reasons(package,["example/__init__.py", "example/core.py"],)
         self.assertEqual(reasons, [])
-        
+
+    def test_report_uses_requested_path(self):
+        with TemporaryDirectory() as directory:
+            output = Path(directory) / "nested" / "report.json"
+            result = save_report([], output=output)
+
+            self.assertEqual(result, output)
+            self.assertTrue(output.is_file())
+
+            report = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(report["packages"], [])
+
+    def test_existing_report_is_not_overwritten(self):
+        with TemporaryDirectory() as directory:
+            output = Path(directory) / "report.json"
+            output.write_text("original content", encoding="utf-8")
+
+            with self.assertRaises(FileExistsError):
+                save_report([], output=output)
+
+            self.assertEqual(
+                output.read_text(encoding="utf-8"),
+                "original content",)
+            
 if __name__ == "__main__":
     unittest.main()
