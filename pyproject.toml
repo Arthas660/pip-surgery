@@ -12,3 +12,7 @@ dependencies = []
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+
+[project.scripts]
+surgery = "pip_surgery.__main__:main"
