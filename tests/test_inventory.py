@@ -173,6 +173,32 @@ class InventoryTests(unittest.TestCase):
             self.assertEqual(file["owners"], ["example==1.0"])
             self.assertFalse(file["protected"])
             self.assertEqual(file["protection_reasons"], [])
+
+    def test_similar_directory_name_is_outside_environment(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            environment = root / ".venv"
+            outside_file = root / ".venv-backup" / "example.py"
+
+            reasons = get_file_protection_reasons(
+                outside_file,
+                environment,
+            )
+
+            self.assertIn("File is outside the Python environment.",reasons,)
+
+    def test_regular_internal_file_has_no_file_protection_reason(self):
+        with TemporaryDirectory() as directory:
+            environment = Path(directory)
+            internal_file = environment / "example" / "core.py"
+            internal_file.parent.mkdir()
+            internal_file.write_text("value = 1\n", encoding="utf-8")
+
+            reasons = get_file_protection_reasons(
+                internal_file,
+                environment,
+            )
+            self.assertEqual(reasons, [])
             
 if __name__ == "__main__":
     unittest.main()
