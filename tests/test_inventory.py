@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from pip_surgery.inventory import get_packages, save_report
 from unittest.mock import Mock
 from pip_surgery.inventory import get_protection_reasons
+from pip_surgery.inventory import get_file_protection_reasons
 
 class InventoryTests(unittest.TestCase):
     def test_packages_are_sorted(self):
@@ -98,6 +99,31 @@ class InventoryTests(unittest.TestCase):
             self.assertEqual(
                 output.read_text(encoding="utf-8"),
                 "original content",)
+
+    def test_license_file_is_protected(self):
+        with TemporaryDirectory() as directory:
+            environment = Path(directory)
+            path = environment / "example" / "LICENSE.txt"
+            reasons = get_file_protection_reasons(path, environment)
+            self.assertIn("License or attribution file.", reasons)
+
+    def test_metadata_file_is_protected(self):
+        with TemporaryDirectory() as directory:
+            environment = Path(directory)
+            path = environment / "example-1.0.dist-info" / "METADATA"
+            reasons = get_file_protection_reasons(path, environment)
+            self.assertIn("Package metadata.", reasons)
+
+    def test_file_outside_environment_is_protected(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            environment = root / "venv"
+            outside_file = root / "outside.txt"
+
+            reasons = get_file_protection_reasons(
+                outside_file,
+                environment,)
+            self.assertIn("File is outside the Python environment.",reasons,)
             
 if __name__ == "__main__":
     unittest.main()

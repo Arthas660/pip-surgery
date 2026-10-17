@@ -39,6 +39,28 @@ def get_protection_reasons(package, file_records) -> list[str]:
         reasons.append("Installation metadata could not be read reliably.")
     return reasons
 
+def get_file_protection_reasons(path: Path, environment: Path,) -> list[str]:
+    reasons = []
+    filename = path.name.casefold()
+    if filename.startswith(("license", "licence", "notice", "copying")):
+        reasons.append("License or attribution file.")
+    if any(
+        part.casefold().endswith((".dist-info", ".egg-info"))for part in path.parts):
+        reasons.append("Package metadata.")
+
+    try:
+        resolved_path = path.resolve()
+        resolved_environment = environment.resolve()
+        if not resolved_path.is_relative_to(resolved_environment):
+            reasons.append("File is outside the Python environment.")
+
+        if path.is_symlink():
+            reasons.append("Symbolic link requires separate review.")
+
+    except (OSError, RuntimeError, ValueError):
+        reasons.append("File location could not be resolved reliably.")
+    return reasons
+
 def get_packages() -> list[dict]:
     packages = []
 
@@ -65,11 +87,16 @@ def get_packages() -> list[dict]:
                 size = None
                 error = str(exc)
 
+            file_protection_reasons = get_file_protection_reasons(Path(path),Path(sys.prefix),
+            )
             files.append({
                 "path": str(path.absolute()),
                 "size_bytes": size,
-                "error": error,})
-
+                "error": error,
+                "protected": bool(file_protection_reasons),
+                "protection_reasons": file_protection_reasons,
+            })
+            
         if any(file["error"] is not None for file in files):
             protection_reasons.append("Some recorded files could not be inspected.")
 
